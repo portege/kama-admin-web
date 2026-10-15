@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KAMA Admin Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Boogaloo&family=Inter:wght@400;450;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://static.babeh.com/admin/css/style.css" />
+  <link rel="stylesheet" href="https://static.babeh.com/admin/css/welcome.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-geo@4.3.3/build/index.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/wordcloud2.js/1.2.2/wordcloud2.min.js"></script>
+</head>
+<body>
+  <div class="admin-layout">
+
+    <!-- ── Sidebar ─────────────────────────────────────────────────────── -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-logo" style="cursor: pointer;" onclick="navigate('welcome')">
+        <div style="width:100%;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+            <div class="logo-text">KAMA</div>
+            <div class="plan-badge" id="planLabel" style="display:none;margin-top:6px;"></div>
+          </div>
+          <div class="logo-sub" id="workspaceLabel">Dashboard</div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-page="welcome" onclick="navigate('welcome')">
+          <span class="nav-icon">🏠</span><span class="nav-label">Home</span>
+        </button>
+
+        <div class="nav-section-label">Data Sources</div>
+        <button class="nav-item" data-page="knowledge" onclick="navigate('knowledge')">
+          <span class="nav-icon">📚</span><span class="nav-label">Knowledge Base</span>
+        </button>
+        <button class="nav-item" data-page="features" onclick="navigate('features')">
+          <span class="nav-icon">⚡</span><span class="nav-label">Features</span>
+        </button>
+
+        <div class="nav-section-label" style="margin-top:8px;">AI Configuration</div>
+        <button class="nav-item" data-page="settings" onclick="navigate('settings')">
+          <span class="nav-icon">⚙️</span><span class="nav-label">AI Engine</span>
+        </button>
+        <button class="nav-item" data-page="custom-instruction" onclick="navigate('custom-instruction')">
+          <span class="nav-icon">💬</span><span class="nav-label">Custom Instruction</span>
+        </button>
+        <button class="nav-item" data-page="fallback-message" onclick="navigate('fallback-message')">
+          <span class="nav-icon">🚫</span><span class="nav-label">Fallback Message</span>
+        </button>
+        <button class="nav-item" data-page="debug" onclick="navigate('debug')">
+          <span class="nav-icon">🐞</span><span class="nav-label">Search Troubleshooter</span>
+        </button>
+        <button class="nav-item" data-page="activitylog" onclick="navigate('activitylog')">
+          <span class="nav-icon">📋</span><span class="nav-label">Activity Log</span>
+        </button>
+
+        <div class="nav-section-label" style="margin-top:8px;">Analytics</div>
+        <button class="nav-item" data-page="summary" onclick="navigate('summary')">
+          <span class="nav-icon">📊</span><span class="nav-label">Summary</span>
+        </button>
+        <button class="nav-item" data-page="usage" onclick="navigate('usage')">
+          <span class="nav-icon">🤖</span><span class="nav-label">Usage &amp; Performance</span>
+        </button>
+        <button class="nav-item" data-page="searchinsights" onclick="navigate('searchinsights')">
+          <span class="nav-icon">🔍</span><span class="nav-label">Search Insights</span>
+        </button>
+        <button class="nav-item" data-page="useranalytics" onclick="navigate('useranalytics')">
+          <span class="nav-icon">👥</span><span class="nav-label">User Analytics</span>
+        </button>
+        <button class="nav-item" data-page="history" onclick="navigate('history')">
+          <span class="nav-icon">📜</span><span class="nav-label">Query History</span>
+        </button>
+
+        <div class="nav-section-label" style="margin-top:8px;">Integration</div>
+        <button class="nav-item" data-page="interactive-faq" onclick="navigate('interactive-faq')">
+          <span class="nav-icon">❓</span><span class="nav-label">Interactive FAQ</span>
+        </button>
+        <button class="nav-item" data-page="summarizer" onclick="navigate('summarizer')">
+          <span class="nav-icon">🧾</span><span class="nav-label">Summarizer</span>
+        </button>
+        <button class="nav-item" data-page="chatbot" onclick="navigate('chatbot')">
+          <span class="nav-icon">💬</span><span class="nav-label">Chatbot</span>
+        </button>
+
+        <div class="nav-section-label" style="margin-top:8px;">Access</div>
+        <button class="nav-item" data-page="users" onclick="navigate('users')">
+          <span class="nav-icon">👤</span><span class="nav-label">Users</span>
+        </button>
+        <button class="nav-item" data-page="settings-credentials" onclick="navigate('settings-credentials')">
+          <span class="nav-icon">🔑</span><span class="nav-label">Credentials</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="sidebar-user">
+          <div class="avatar" id="avatarInitial">A</div>
+          <div class="user-info">
+            <div class="user-name" id="sidebarUsername">—</div>
+            <div class="user-role" id="sidebarRole">—</div>
+          </div>
+        </div>
+        <button class="btn-logout" onclick="logout()">
+          🚪 <span class="btn-logout-label">Sign Out</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- ── Main content ────────────────────────────────────────────────── -->
+    <div class="main-content">
+      <header class="topbar" id="topbar">
+        <div style="display:flex;align-items:center;">
+          <button class="btn-sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()" title="Toggle sidebar">☰</button>
+          <div class="topbar-title" id="topbarTitle">Welcome</div>
+        </div>
+        <div class="topbar-right">
+          <button class="btn-dark-toggle" id="darkModeToggle" onclick="toggleDarkMode()" title="Toggle dark mode">🌙</button>
+          <span class="warning-badge hidden" id="defaultPwdWarning">
+            Change default password
+          </span>
+        </div>
+      </header>
+
+      <main class="page-body" id="pageBody">
+        <!-- Content rendered by JS modules -->
+      </main>
+    </div>
+  </div>
+
+  <!-- ── Toast container ─────────────────────────────────────────────── -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- ── Scripts ─────────────────────────────────────────────────────── -->
+  <script src="https://static.babeh.com/admin/js/config.js?v=20260912-01"></script>
+  <script src="https://static.babeh.com/admin/js/auth.js?v=20260912-01"></script>
+  <script src="https://static.babeh.com/admin/js/welcome.js"></script>
+  <script src="https://static.babeh.com/admin/js/features.js"></script>
+  <script src="https://static.babeh.com/admin/js/knowledge.js"></script>
+  <script src="https://static.babeh.com/admin/js/schema-editor.js"></script>
+  <script src="https://static.babeh.com/admin/js/pricing.js"></script>
+  <script src="https://static.babeh.com/admin/js/pricing-schema.js"></script>
+  <script src="https://static.babeh.com/admin/js/productspecs.js"></script>
+  <script src="https://static.babeh.com/admin/js/financing.js"></script>
+  <script src="https://static.babeh.com/admin/js/shipping.js"></script>
+  <script src="https://static.babeh.com/admin/js/customapi.js"></script>
+  <script src="https://static.babeh.com/admin/js/intentrules.js"></script>
+
+  <script src="https://static.babeh.com/admin/js/summary.js"></script>
+  <script src="https://static.babeh.com/admin/js/usage.js"></script>
+  <script src="https://static.babeh.com/admin/js/searchinsights.js"></script>
+  <script src="https://static.babeh.com/admin/js/history.js"></script>
+  <script src="https://static.babeh.com/admin/js/useranalytics.js"></script>
+  <script src="https://static.babeh.com/admin/js/users.js"></script>
+  <script src="https://static.babeh.com/admin/js/settings.js?v=20260527"></script>
+  <script src="https://static.babeh.com/admin/js/custominstructions.js"></script>
+  <script src="https://static.babeh.com/admin/js/fallbackmessage.js"></script>
+  <script src="https://static.babeh.com/admin/js/query-core.js"></script>
+  <script src="https://static.babeh.com/admin/js/debug.js"></script>
+  <script src="https://static.babeh.com/admin/js/activitylog.js"></script>
+  <script src="https://static.babeh.com/admin/js/integration.js"></script>
+  <script src="https://static.babeh.com/admin/js/summarizer-feature.js"></script>
+  <script src="https://static.babeh.com/admin/js/app.js"></script>
+</body>
+</html>

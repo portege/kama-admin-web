@@ -1,0 +1,441 @@
+/**
+ * usage.js — Usage analytics with charts
+ */
+
+let _usageChart = null;
+let _queryChart = null;
+let _timeChart = null;
+let _currentPeriod = 30;
+
+async function renderUsage() {
+  const body = document.getElementById('pageBody');
+  body.innerHTML = `
+    <div style="max-width:1400px;margin:0 auto;">
+      <!-- Header Section -->
+      <div style="margin-bottom:32px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <div>
+            <h1 style="font-size:28px;font-weight:700;margin:0 0 8px 0;color:var(--text);">LLM Metrics</h1>
+            <p style="margin:0;color:var(--text-muted);font-size:14px;">Monitor token usage, query volume, and performance metrics</p>
+          </div>
+          <div style="display:flex;gap:12px;align-items:center;">
+            <select class="form-control" id="periodSelector" style="width:160px;height:40px;font-size:14px;" onchange="onPeriodChange(this.value)">
+              <option value="7">Last 7 Days</option>
+              <option value="14">Last 14 Days</option>
+              <option value="30" selected>Last 30 Days</option>
+              <option value="60">Last 60 Days</option>
+              <option value="90">Last 90 Days</option>
+            </select>
+            <button class="btn btn-primary" style="height:40px;padding:0 20px;" onclick="loadUsage()">Refresh</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Summary Cards -->
+      <div id="usageSummary" style="margin-bottom:32px;"></div>
+
+      <!-- Charts Grid -->
+      <div style="display:grid;gap:24px;">
+        <!-- Token Usage Chart -->
+        <div style="background:var(--card-bg);border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.1);overflow:hidden;">
+          <div style="padding:24px 24px 16px 24px;border-bottom:1px solid #f0f0f0;">
+            <h2 style="font-size:18px;font-weight:600;margin:0;color:var(--text);">Token Usage Distribution</h2>
+            <p style="margin:4px 0 0 0;font-size:13px;color:var(--text-muted);">Input vs Output tokens over time</p>
+          </div>
+          <div style="padding:24px;">
+            <canvas id="tokenChart" style="max-height:320px;"></canvas>
+          </div>
+        </div>
+
+        <!-- Two Column Grid for Other Charts -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+          <!-- Query Count Chart -->
+          <div style="background:var(--card-bg);border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.1);overflow:hidden;">
+            <div style="padding:24px 24px 16px 24px;border-bottom:1px solid #f0f0f0;">
+              <h2 style="font-size:18px;font-weight:600;margin:0;color:var(--text);">Query Volume</h2>
+              <p style="margin:4px 0 0 0;font-size:13px;color:var(--text-muted);">Daily query count trend</p>
+            </div>
+            <div style="padding:24px;">
+              <canvas id="queryChart" style="max-height:280px;"></canvas>
+            </div>
+          </div>
+
+          <!-- Processing Time Chart -->
+          <div style="background:var(--card-bg);border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.1);overflow:hidden;">
+            <div style="padding:24px 24px 16px 24px;border-bottom:1px solid #f0f0f0;">
+              <h2 style="font-size:18px;font-weight:600;margin:0;color:var(--text);">Performance Metrics</h2>
+              <p style="margin:4px 0 0 0;font-size:13px;color:var(--text-muted);">Average processing time per query</p>
+            </div>
+            <div style="padding:24px;">
+              <canvas id="timeChart" style="max-height:280px;"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  await loadUsage();
+}
+
+async function loadUsage() {
+  try {
+    const data = await adminFetch(`/usage?days=${_currentPeriod}`);
+    
+    // Update summary cards
+    renderSummaryCards(data.totals);
+    
+    // Render charts
+    renderTokenChart(data.timeseries);
+    renderQueryChart(data.timeseries);
+    renderTimeChart(data.timeseries);
+    
+  } catch (err) {
+    showToast('Failed to load usage data: ' + err.message, 'error');
+  }
+}
+
+function renderSummaryCards(totals) {
+  const container = document.getElementById('usageSummary');
+  if (!container) return;
+  
+  container.innerHTML = `
+    <div style="background:var(--card-bg);border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.1);padding:32px;margin-bottom:0;">
+      <div style="display:flex;gap:48px;align-items:center;justify-content:space-between;">
+        ${createUsageMetric('Total Queries', formatNumber(totals.queries), '#BB86FC', 'Total number of API requests')}
+        <div style="width:1px;height:60px;background:#e5e7eb;"></div>
+        ${createUsageMetric('Input Tokens', formatNumber(totals.input_tokens), '#8b5cf6', 'Tokens sent to the model')}
+        <div style="width:1px;height:60px;background:#e5e7eb;"></div>
+        ${createUsageMetric('Output Tokens', formatNumber(totals.output_tokens), '#10b981', 'Tokens generated by model')}
+        <div style="width:1px;height:60px;background:#e5e7eb;"></div>
+        ${createUsageMetric('Total Tokens', formatNumber(totals.total_tokens), '#f59e0b', 'Combined token usage')}
+        <div style="width:1px;height:60px;background:#e5e7eb;"></div>
+        ${createUsageMetric('Avg Processing Time', totals.avg_processing_time + 's', '#ef4444', 'Average response time')}
+      </div>
+    </div>
+  `;
+}
+
+function createUsageMetric(label, value, color, description) {
+  return `
+    <div style="flex:1;text-align:center;">
+      <div style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">${label}</div>
+      <div style="font-size:36px;font-weight:700;color:${color};margin-bottom:6px;">${value}</div>
+      <div style="font-size:12px;color:var(--text-muted);">${description}</div>
+    </div>
+  `;
+}
+
+function renderTokenChart(timeseries) {
+  const ctx = document.getElementById('tokenChart');
+  if (!ctx) return;
+  
+  // Destroy previous chart
+  if (_usageChart) {
+    _usageChart.destroy();
+  }
+  
+  const labels = timeseries.map(d => formatDate(d.date));
+  const inputData = timeseries.map(d => d.input_tokens);
+  const outputData = timeseries.map(d => d.output_tokens);
+  const totalData = timeseries.map(d => d.input_tokens + d.output_tokens);
+  
+  _usageChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Input Tokens',
+          data: inputData,
+          backgroundColor: 'rgba(139, 92, 246, 0.1)',
+          borderColor: 'rgb(139, 92, 246)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointBackgroundColor: 'rgb(139, 92, 246)',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2
+        },
+        {
+          label: 'Output Tokens',
+          data: outputData,
+          backgroundColor: 'rgba(16, 185, 129, 0.1)',
+          borderColor: 'rgb(16, 185, 129)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointBackgroundColor: 'rgb(16, 185, 129)',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2
+        },
+        {
+          label: 'Total Tokens',
+          data: totalData,
+          backgroundColor: 'rgba(245, 158, 11, 0.1)',
+          borderColor: 'rgb(245, 158, 11)',
+          borderWidth: 2,
+          fill: false,
+          tension: 0.4,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointBackgroundColor: 'rgb(245, 158, 11)',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2,
+          borderDash: [5, 5]
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      interaction: {
+        mode: 'index',
+        intersect: false
+      },
+      scales: {
+        x: {
+          grid: {
+            display: false
+          },
+          ticks: {
+            font: {
+              size: 12
+            }
+          }
+        },
+        y: {
+          beginAtZero: true,
+          grid: {
+            color: 'rgba(0, 0, 0, 0.05)',
+            drawBorder: false
+          },
+          ticks: {
+            font: {
+              size: 12
+            },
+            callback: function(value) {
+              return formatNumber(value);
+            }
+          }
+        }
+      },
+      plugins: {
+        legend: {
+          position: 'top',
+          align: 'end',
+          labels: {
+            usePointStyle: true,
+            pointStyle: 'circle',
+            padding: 15,
+            font: {
+              size: 13,
+              weight: '500'
+            }
+          }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          padding: 12,
+          titleFont: {
+            size: 13,
+            weight: '600'
+          },
+          bodyFont: {
+            size: 12
+          },
+          callbacks: {
+            label: function(context) {
+              return context.dataset.label + ': ' + formatNumber(context.parsed.y);
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderQueryChart(timeseries) {
+  const ctx = document.getElementById('queryChart');
+  if (!ctx) return;
+  
+  if (_queryChart) {
+    _queryChart.destroy();
+  }
+  
+  const labels = timeseries.map(d => formatDate(d.date));
+  const data = timeseries.map(d => d.query_count);
+  
+  _queryChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Number of Queries',
+        data: data,
+        borderColor: 'rgb(59, 130, 246)',
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        borderWidth: 3,
+        fill: true,
+        tension: 0.4,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        pointBackgroundColor: 'rgb(59, 130, 246)',
+        pointBorderColor: '#fff',
+        pointBorderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      scales: {
+        x: {
+          grid: {
+            display: false
+          },
+          ticks: {
+            font: {
+              size: 12
+            }
+          }
+        },
+        y: {
+          beginAtZero: true,
+          grid: {
+            color: 'rgba(0, 0, 0, 0.05)',
+            drawBorder: false
+          },
+          ticks: {
+            stepSize: 1,
+            font: {
+              size: 12
+            }
+          }
+        }
+      },
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          padding: 12,
+          titleFont: {
+            size: 13,
+            weight: '600'
+          },
+          bodyFont: {
+            size: 12
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderTimeChart(timeseries) {
+  const ctx = document.getElementById('timeChart');
+  if (!ctx) return;
+  
+  if (_timeChart) {
+    _timeChart.destroy();
+  }
+  
+  const labels = timeseries.map(d => formatDate(d.date));
+  const data = timeseries.map(d => d.avg_time);
+  
+  _timeChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Avg Processing Time (s)',
+        data: data,
+        borderColor: 'rgb(245, 158, 11)',
+        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+        borderWidth: 3,
+        fill: true,
+        tension: 0.4,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        pointBackgroundColor: 'rgb(245, 158, 11)',
+        pointBorderColor: '#fff',
+        pointBorderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      scales: {
+        x: {
+          grid: {
+            display: false
+          },
+          ticks: {
+            font: {
+              size: 12
+            }
+          }
+        },
+        y: {
+          beginAtZero: true,
+          grid: {
+            color: 'rgba(0, 0, 0, 0.05)',
+            drawBorder: false
+          },
+          ticks: {
+            font: {
+              size: 12
+            },
+            callback: function(value) {
+              return value.toFixed(2) + 's';
+            }
+          }
+        }
+      },
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          padding: 12,
+          titleFont: {
+            size: 13,
+            weight: '600'
+          },
+          bodyFont: {
+            size: 12
+          },
+          callbacks: {
+            label: function(context) {
+              return 'Avg Time: ' + context.parsed.y.toFixed(3) + 's';
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+function onPeriodChange(days) {
+  _currentPeriod = parseInt(days);
+  loadUsage();
+}
+
+// ── Helper functions ──────────────────────────────────────────────────────────
+
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function formatNumber(num) {
+  if (num === null || num === undefined) return '0';
+  return num.toLocaleString();
+}

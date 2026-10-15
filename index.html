@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KAMA Admin — Login</title>
+  <link rel="stylesheet" href="https://static.babeh.com/admin/css/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Boogaloo&family=Inter:wght@400;450;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="login-page">
+    <div class="login-card">
+      <div class="login-logo">
+        <h1 style="font-size: 72px; font-weight: 400; font-family: 'Boogaloo', cursive; background-image: linear-gradient(135deg, #BB86FC, #9b59f5, #e040fb, #BB86FC); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; letter-spacing: 0.3px; margin: 0;">KAMA</h1>
+      </div>
+
+      <div class="login-error" id="loginError"></div>
+
+      <form id="loginForm" autocomplete="off">
+        <div class="form-group">
+          <label class="form-label" for="workspace">Workspace</label>
+          <input
+            class="form-control"
+            type="text"
+            id="workspace"
+            name="workspace"
+            placeholder="e.g. sales-dept"
+            autocomplete="off"
+            spellcheck="false"
+            required
+          />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="username">Username</label>
+          <input
+            class="form-control"
+            type="text"
+            id="username"
+            name="username"
+            placeholder="Enter username"
+            autocomplete="username"
+            required
+          />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="password">Password</label>
+          <input
+            class="form-control"
+            type="password"
+            id="password"
+            name="password"
+            placeholder="Enter password"
+            autocomplete="current-password"
+            required
+          />
+        </div>
+        <button type="submit" class="btn btn-primary w-full" id="loginBtn" style="justify-content:center;margin-top:8px;padding:16px 24px;font-size:15px;font-weight:600;border-radius:10px;letter-spacing:0.02em;">
+          Sign In
+        </button>
+      </form>
+
+      <p style="text-align:center;margin-top:20px;font-size:12px;color:rgba(255,255,255,0.38);">
+        Engineered by <a href="https://mas-mas.it" target="_blank" rel="noopener noreferrer" style="color: #BB86FC; text-decoration: none; font-weight: 600;">Mas-Mas.IT</a>
+      </p>
+    </div>
+  </div>
+
+  <script src="https://static.babeh.com/admin/js/config.js?v=20260912-01"></script>
+  <script>
+    /** SHA-256 of "workspace::token" — used to detect sessionStorage tampering */
+    async function _computeBinding(workspace, token) {
+      const raw = `${workspace}::${token}`;
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
+      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    // Redirect if already logged in (same tab / workspace)
+    if (sessionStorage.getItem('admin_token')) {
+      window.location.href = 'dashboard.html';
+    }
+
+    // ── Login handler ───────────────────────────────────────────────
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn   = document.getElementById('loginBtn');
+      const errEl = document.getElementById('loginError');
+      errEl.classList.remove('visible');
+      btn.disabled    = true;
+      btn.textContent = 'Signing in…';
+
+      const workspace = document.getElementById('workspace').value.trim();
+      const username  = document.getElementById('username').value.trim();
+      const password  = document.getElementById('password').value;
+
+      try {
+        // Step 1: Resolve workspace endpoint via mapping API.
+        // No user credentials are sent to the mapping service.
+        const endpoint = await lookupWorkspace(workspace);
+        if (!endpoint) {
+          throw new Error(`Workspace “${workspace}” not found.`);
+        }
+
+        // Step 2: Authenticate directly against the target workspace API.
+        const wsRes = await fetch(`${endpoint}/api/admin/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password, workspace }),
+        });
+        const wsData = await wsRes.json();
+        if (!wsRes.ok) {
+          throw new Error(wsData.detail || 'Workspace authentication failed');
+        }
+        const wsToken = wsData.access_token;
+        if (!wsToken) throw new Error('No token received from workspace');
+
+        // Step 3: Store session — endpoint-bound, tamper-resistant.
+        const binding = await _computeBinding(workspace, wsToken);
+        sessionStorage.setItem('admin_workspace',       workspace);
+        sessionStorage.setItem('admin_endpoint',        endpoint);
+        sessionStorage.setItem('admin_token',           wsToken);
+        sessionStorage.setItem('admin_user',            JSON.stringify(wsData.user));
+        sessionStorage.setItem('admin_session_binding', binding);
+        window.location.href = 'dashboard.html';
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.classList.add('visible');
+        btn.disabled    = false;
+        btn.textContent = 'Sign In';
+      }
+    });
+  </script>
+</body>
+</html>
