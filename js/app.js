@@ -197,10 +197,82 @@ function _renderTraceSegments(raw) {
   }).join('');
 }
 
+function _toNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function _segmentColor(index) {
+  const palette = [
+    'rgba(3,218,198,0.95)',
+    'rgba(187,134,252,0.95)',
+    'rgba(245,158,11,0.95)',
+    'rgba(56,189,248,0.95)',
+    'rgba(239,68,68,0.95)',
+    'rgba(132,204,22,0.95)',
+  ];
+  return palette[index % palette.length];
+}
+
+function _renderTraceGraph(list) {
+  const graph = document.getElementById('traceTimelineGraph');
+  const scale = document.getElementById('traceGraphScale');
+  if (!graph || !scale) return;
+
+  if (!list.length) {
+    graph.innerHTML = '<div class="trace-graph-empty">No timing events yet. Trigger some API calls.</div>';
+    scale.textContent = 'Scale: —';
+    return;
+  }
+
+  const withDurations = list.map((item) => {
+    const totalMs = _toNumber(item.totalMs);
+    const processMs = _toNumber(item.processTimeMs);
+    return {
+      ...item,
+      durationMs: totalMs ?? processMs ?? 0,
+      segments: _parseServerTiming(item.serverTiming).filter((s) => Number.isFinite(s.dur) && s.dur > 0),
+    };
+  });
+
+  const maxMs = Math.max(1, ...withDurations.map((item) => item.durationMs));
+  scale.textContent = `Scale: max ${maxMs.toFixed(2)}ms`;
+
+  graph.innerHTML = withDurations.map((item) => {
+    const width = Math.max(2, (item.durationMs / maxMs) * 100);
+    const label = item.path || item.workspace || 'unknown path';
+    const meta = `${_formatTime(item.at)} • ${item.kind || 'unknown'} • ${item.durationMs.toFixed(2)}ms`;
+
+    let barInner = '';
+    if (item.segments.length) {
+      barInner = item.segments.map((segment, index) => {
+        const segWidth = Math.max(1, (segment.dur / item.durationMs) * 100);
+        return `<span class="trace-graph-segment" title="${_escapeHtml(segment.name)}: ${segment.dur.toFixed(2)}ms" style="width:${segWidth.toFixed(2)}%;background:${_segmentColor(index)};"></span>`;
+      }).join('');
+    }
+
+    return `
+      <div class="trace-graph-row">
+        <div class="trace-graph-label">
+          <div class="trace-graph-title" title="${_escapeHtml(label)}">${_escapeHtml(label)}</div>
+          <div class="trace-graph-meta">${_escapeHtml(meta)}</div>
+        </div>
+        <div class="trace-graph-track" title="${_escapeHtml(meta)}">
+          <div class="trace-graph-bar" style="width:${width.toFixed(2)}%">
+            ${barInner}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
 function renderTracingTimeline() {
   const body = document.getElementById('traceTimelineBody');
+  const listChrono = Array.isArray(window.__kamaTimings) ? window.__kamaTimings.slice() : [];
+  _renderTraceGraph(listChrono);
   if (!body) return;
-  const list = Array.isArray(window.__kamaTimings) ? window.__kamaTimings.slice().reverse() : [];
+  const list = listChrono.slice().reverse();
   if (!list.length) {
     body.innerHTML = '<tr><td colspan="7" class="trace-cell-muted">No timing events yet. Trigger some API calls.</td></tr>';
     return;
@@ -252,6 +324,10 @@ async function copyTracingTimeline() {
     showToast('Failed to copy timeline.', 'error');
   }
 }
+
+window.toggleTracingTimeline = toggleTracingTimeline;
+window.clearTracingTimeline = clearTracingTimeline;
+window.copyTracingTimeline = copyTracingTimeline;
 
 window.refreshTracingTimeline = function refreshTracingTimeline() {
   if (_tracePanelOpen) {

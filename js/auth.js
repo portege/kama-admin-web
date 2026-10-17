@@ -91,6 +91,20 @@ function _recordFetchTiming(kind, path, started, res, extra = {}) {
   });
 }
 
+function _normalizeAdminRequest(path, opts = {}) {
+  if (path === '/settings/llm') {
+    const method = String(opts.method || 'GET').toUpperCase();
+    return {
+      path: '/settings',
+      opts: method === 'PUT'
+        ? { ...opts, method: 'POST' }
+        : opts,
+    };
+  }
+
+  return { path, opts };
+}
+
 // ── Base fetch helpers ────────────────────────────────────────────────────────
 
 async function adminFetch(path, opts = {}) {
@@ -104,12 +118,13 @@ async function adminFetch(path, opts = {}) {
   if (!base) {
     throw new Error('Workspace API endpoint is missing. Please log in again.');
   }
-  const res = await fetch(`${base}/api/admin${path}`, {
-    ...opts,
+  const request = _normalizeAdminRequest(path, opts);
+  const res = await fetch(`${base}/api/admin${request.path}`, {
+    ...request.opts,
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${getToken()}`,
-      ...(opts.headers || {}),
+      ...(request.opts.headers || {}),
     },
   });
   if (res.status === 401) {
