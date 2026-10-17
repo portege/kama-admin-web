@@ -152,10 +152,117 @@ const PAGE_RENDERERS = {
 };
 
 let _currentPage = null;
+let _tracePanelOpen = false;
+
+function _parseServerTiming(raw) {
+  const value = String(raw || '').trim();
+  if (!value) return [];
+  return value
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((segment) => {
+      const [namePart, ...attrs] = segment.split(';').map((x) => x.trim());
+      let dur = null;
+      attrs.forEach((attr) => {
+        const [k, v] = attr.split('=');
+        if (k === 'dur') dur = Number(v);
+      });
+      return { name: namePart || 'unknown', dur };
+    });
+}
+
+function _escapeHtml(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function _formatTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleTimeString();
+}
+
+function _renderTraceSegments(raw) {
+  const segments = _parseServerTiming(raw);
+  if (!segments.length) return '<span class="trace-cell-muted">—</span>';
+  return segments.map((s) => {
+    const duration = Number.isFinite(s.dur) ? `${s.dur.toFixed(2)}ms` : 'n/a';
+    return `<span class="trace-segment">${_escapeHtml(s.name)}: ${_escapeHtml(duration)}</span>`;
+  }).join('');
+}
+
+function renderTracingTimeline() {
+  const body = document.getElementById('traceTimelineBody');
+  if (!body) return;
+  const list = Array.isArray(window.__kamaTimings) ? window.__kamaTimings.slice().reverse() : [];
+  if (!list.length) {
+    body.innerHTML = '<tr><td colspan="7" class="trace-cell-muted">No timing events yet. Trigger some API calls.</td></tr>';
+    return;
+  }
+
+  body.innerHTML = list.map((item) => {
+    return `
+      <tr>
+        <td>${_escapeHtml(_formatTime(item.at))}</td>
+        <td>${_escapeHtml(item.kind || 'unknown')}</td>
+        <td>${_escapeHtml(item.path || item.workspace || '—')}</td>
+        <td>${_escapeHtml(item.status ?? '—')}</td>
+        <td>${_escapeHtml(item.totalMs ?? '—')}</td>
+        <td>${_escapeHtml(item.processTimeMs || '—')}</td>
+        <td>${_renderTraceSegments(item.serverTiming)}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function toggleTracingTimeline() {
+  const panel = document.getElementById('tracePanel');
+  const btn = document.getElementById('traceTimelineToggle');
+  if (!panel || !btn) return;
+
+  _tracePanelOpen = !_tracePanelOpen;
+  panel.classList.toggle('hidden', !_tracePanelOpen);
+  panel.setAttribute('aria-hidden', _tracePanelOpen ? 'false' : 'true');
+  btn.classList.toggle('active', _tracePanelOpen);
+
+  if (_tracePanelOpen) {
+    renderTracingTimeline();
+  }
+}
+
+function clearTracingTimeline() {
+  window.__kamaTimings = [];
+  window.__kamaLastTiming = null;
+  renderTracingTimeline();
+  showToast('Tracing timeline cleared.', 'info');
+}
+
+async function copyTracingTimeline() {
+  const payload = JSON.stringify(window.__kamaTimings || [], null, 2);
+  try {
+    await navigator.clipboard.writeText(payload);
+    showToast('Tracing timeline copied.', 'success');
+  } catch (_) {
+    showToast('Failed to copy timeline.', 'error');
+  }
+}
+
+window.refreshTracingTimeline = function refreshTracingTimeline() {
+  if (_tracePanelOpen) {
+    renderTracingTimeline();
+  }
+};
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
 (async function init() {
+  const started = performance.now();
   requireAuth();
 
   // Show active workspace name in sidebar logo
@@ -223,6 +330,18 @@ let _currentPage = null;
   // Navigate to page from hash or default to welcome
   const page = location.hash.replace('#', '') || 'welcome';
   navigate(page);
+
+  window.__kamaTimings = window.__kamaTimings || [];
+  window.__kamaTimings.push({
+    at: new Date().toISOString(),
+    kind: 'dashboardBootstrap',
+    totalMs: Number((performance.now() - started).toFixed(2)),
+    workspace: ws || '',
+  });
+  window.__kamaLastTiming = window.__kamaTimings[window.__kamaTimings.length - 1];
+  if (console && console.debug) {
+    console.debug('[KAMA timing]', window.__kamaLastTiming);
+  }
 })();
 
 // ── Navigation ────────────────────────────────────────────────────────────────
