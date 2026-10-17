@@ -249,6 +249,29 @@ body {
 .topbar-title { font-size: 17px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; }
 .topbar-right { display: flex; align-items: center; gap: 12px; }
 
+.btn-trace-toggle {
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(187,134,252,0.35);
+  background: rgba(187,134,252,0.14);
+  color: #e9d8ff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .2s ease;
+}
+
+.btn-trace-toggle:hover {
+  background: rgba(187,134,252,0.24);
+  border-color: rgba(187,134,252,0.55);
+}
+
+.btn-trace-toggle.active {
+  background: rgba(3,218,198,0.18);
+  border-color: rgba(3,218,198,0.45);
+  color: #b7fff8;
+}
+
 .warning-badge {
   background: rgba(245,158,11,0.15);
   color: #fbbf24;
@@ -262,6 +285,100 @@ body {
 .page-body {
   flex: 1;
   padding: 28px;
+}
+
+.trace-panel {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  width: min(1080px, calc(100vw - 36px));
+  max-height: 62vh;
+  background: #141414;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  z-index: 220;
+  display: flex;
+  flex-direction: column;
+}
+
+.trace-panel.hidden { display: none; }
+
+.trace-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.trace-panel-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.9);
+}
+
+.trace-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.trace-action {
+  padding: 5px 10px;
+  border-radius: 7px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.86);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.trace-action:hover {
+  background: rgba(255,255,255,0.12);
+}
+
+.trace-panel-body {
+  overflow: auto;
+  max-height: calc(62vh - 52px);
+}
+
+.trace-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.trace-table th,
+.trace-table td {
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.trace-table th {
+  position: sticky;
+  top: 0;
+  background: #1a1a1a;
+  color: rgba(255,255,255,0.72);
+  font-weight: 600;
+}
+
+.trace-cell-muted {
+  color: rgba(255,255,255,0.58);
+}
+
+.trace-segment {
+  display: inline-block;
+  margin: 2px 4px 2px 0;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(3,218,198,0.12);
+  border: 1px solid rgba(3,218,198,0.24);
+  color: #a5fff7;
+  white-space: nowrap;
 }
 
 /* ── Cards ────────────────────────────────────────────────────────────────── */

@@ -117,6 +117,7 @@
           <div class="topbar-title" id="topbarTitle">Welcome</div>
         </div>
         <div class="topbar-right">
+          <button class="btn-trace-toggle" id="traceTimelineToggle" onclick="toggleTracingTimeline()" title="Show request timeline">Trace Timeline</button>
           <button class="btn-dark-toggle" id="darkModeToggle" onclick="toggleDarkMode()" title="Toggle dark mode">🌙</button>
           <span class="warning-badge hidden" id="defaultPwdWarning">
             Change default password
@@ -132,6 +133,34 @@
 
   <!-- ── Toast container ─────────────────────────────────────────────── -->
   <div class="toast-container" id="toastContainer"></div>
+
+  <!-- ── Tracing timeline panel ──────────────────────────────────────── -->
+  <div class="trace-panel hidden" id="tracePanel" aria-hidden="true">
+    <div class="trace-panel-header">
+      <div class="trace-panel-title">End-to-End Trace Timeline</div>
+      <div class="trace-panel-actions">
+        <button type="button" class="trace-action" onclick="copyTracingTimeline()">Copy</button>
+        <button type="button" class="trace-action" onclick="clearTracingTimeline()">Clear</button>
+        <button type="button" class="trace-action" onclick="toggleTracingTimeline()">Close</button>
+      </div>
+    </div>
+    <div class="trace-panel-body">
+      <table class="trace-table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Kind</th>
+            <th>Path</th>
+            <th>Status</th>
+            <th>Total (ms)</th>
+            <th>Process (ms)</th>
+            <th>Server Segments</th>
+          </tr>
+        </thead>
+        <tbody id="traceTimelineBody"></tbody>
+      </table>
+    </div>
+  </div>
 
   <!-- ── Scripts ─────────────────────────────────────────────────────── -->
   <script src="https://static.babeh.com/admin/js/config.js?v=20260912-01"></script>

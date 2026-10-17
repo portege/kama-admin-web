@@ -24,12 +24,27 @@ const MAPPING_API_URL = _isLocalhost
 // ── Workspace registry (populated at login page load) ───────────────────
 let WORKSPACE_MAP = {}; // { slug: endpoint }
 
+function _recordWorkspaceTiming(name, startedAt, extra = {}) {
+  const entry = {
+    kind: name,
+    totalMs: Number((performance.now() - startedAt).toFixed(2)),
+    ...extra,
+  };
+  window.__kamaTimings = window.__kamaTimings || [];
+  window.__kamaTimings.push(entry);
+  window.__kamaLastTiming = entry;
+  if (console && console.debug) {
+    console.debug('[KAMA timing]', entry);
+  }
+}
+
 /**
  * Fetch all active workspaces from the mapping API.
  * Public endpoint — no token required.
  * Populates WORKSPACE_MAP and returns it.
  */
 async function loadWorkspaces() {
+  const started = performance.now();
   try {
     const res = await fetch(`${MAPPING_API_URL}/api/workspaces/public`, {
       cache: 'no-cache',
@@ -48,6 +63,7 @@ async function loadWorkspaces() {
     console.error('❌ Failed to load workspaces from mapping API:', e);
     WORKSPACE_MAP = {};
   }
+  _recordWorkspaceTiming('workspaceListLookup', started);
   return WORKSPACE_MAP;
 }
 
@@ -57,6 +73,7 @@ async function loadWorkspaces() {
  * the target workspace backend.
  */
 async function lookupWorkspace(slug) {
+  const started = performance.now();
   const key = String(slug || '').trim();
   if (!key) return null;
   let lookupError = null;
@@ -71,6 +88,7 @@ async function lookupWorkspace(slug) {
       const url = data.endpoint || data.url || data.api_url || null;
       if (url) {
         WORKSPACE_MAP[key] = url;
+        _recordWorkspaceTiming('workspaceLookup', started, { workspace: key, source: 'direct' });
         return url;
       }
     } else {
@@ -85,7 +103,11 @@ async function lookupWorkspace(slug) {
     await loadWorkspaces();
   }
 
-  return WORKSPACE_MAP[key] || null;
+  const endpoint = WORKSPACE_MAP[key] || null;
+  if (endpoint) {
+    _recordWorkspaceTiming('workspaceLookup', started, { workspace: key, source: 'list' });
+  }
+  return endpoint;
 }
 
 // ── API base resolution ─────────────────────────────────────────────────

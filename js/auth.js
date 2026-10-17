@@ -53,9 +53,48 @@ function requireAuth() {
   }
 }
 
+function _recordTiming(entry) {
+  const store = window.__kamaTimings || (window.__kamaTimings = []);
+  store.push({
+    at: new Date().toISOString(),
+    ...entry,
+  });
+  if (store.length > 50) {
+    store.shift();
+  }
+  window.__kamaLastTiming = entry;
+  if (console && console.debug) {
+    console.debug('[KAMA timing]', entry);
+  }
+  if (typeof window.refreshTracingTimeline === 'function') {
+    window.refreshTracingTimeline();
+  }
+}
+
+function _readTimingHeaders(res) {
+  return {
+    serverTiming: res.headers.get('Server-Timing') || '',
+    processTimeMs: res.headers.get('X-Process-Time-Ms') || '',
+  };
+}
+
+function _recordFetchTiming(kind, path, started, res, extra = {}) {
+  const timingHeaders = res ? _readTimingHeaders(res) : { serverTiming: '', processTimeMs: '' };
+  _recordTiming({
+    kind,
+    path,
+    status: res ? res.status : null,
+    totalMs: Number((performance.now() - started).toFixed(2)),
+    serverTiming: timingHeaders.serverTiming,
+    processTimeMs: timingHeaders.processTimeMs,
+    ...extra,
+  });
+}
+
 // ── Base fetch helpers ────────────────────────────────────────────────────────
 
 async function adminFetch(path, opts = {}) {
+  const started = performance.now();
   if (!(await verifySessionIntegrity())) {
     console.warn('Session integrity check failed — forcing logout');
     logout();
@@ -73,9 +112,17 @@ async function adminFetch(path, opts = {}) {
       ...(opts.headers || {}),
     },
   });
-  if (res.status === 401) { logout(); return; }
+  if (res.status === 401) {
+    _recordFetchTiming('adminFetch', path, started, res);
+    logout();
+    return;
+  }
   const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+  if (!res.ok) {
+    _recordFetchTiming('adminFetch', path, started, res);
+    throw new Error(data.detail || `HTTP ${res.status}`);
+  }
+  _recordFetchTiming('adminFetch', path, started, res);
   return data;
 }
 
@@ -94,6 +141,7 @@ async function refreshApiKey() {
 }
 
 async function apiFetch(path, opts = {}) {
+  const started = performance.now();
   if (!(await verifySessionIntegrity())) {
     console.warn('Session integrity check failed — forcing logout');
     logout();
@@ -119,7 +167,11 @@ async function apiFetch(path, opts = {}) {
     },
   });
 
-  if (res.status === 401) { logout(); return; }
+  if (res.status === 401) {
+    _recordFetchTiming('apiFetch', path, started, res);
+    logout();
+    return;
+  }
   if (res.status === 403 && apiKey) {
     const refreshedKey = await refreshApiKey();
     if (refreshedKey && refreshedKey !== apiKey) {
@@ -135,7 +187,11 @@ async function apiFetch(path, opts = {}) {
     }
   }
 
-  if (res.status === 401) { logout(); return; }
+  if (res.status === 401) {
+    _recordFetchTiming('apiFetch', path, started, res);
+    logout();
+    return;
+  }
 
   let data = null;
   try {
@@ -152,8 +208,10 @@ async function apiFetch(path, opts = {}) {
       data?.message ||
       (detail ? JSON.stringify(detail) : '') ||
       `HTTP ${res.status}`;
+    _recordFetchTiming('apiFetch', path, started, res, { retried: apiKey !== String(sessionStorage.getItem('admin_api_key') || '').trim() });
     throw new Error(errorMessage);
   }
+  _recordFetchTiming('apiFetch', path, started, res, { retried: apiKey !== String(sessionStorage.getItem('admin_api_key') || '').trim() });
   return data;
 }
 
