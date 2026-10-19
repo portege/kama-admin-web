@@ -112,12 +112,23 @@ async function runDebugSearch() {
     });
     if (!data) return; // 401 already triggered logout redirect
     window._debugData = data;
+
+    const config = data.config || {
+      relevance_threshold: 0.35,
+      search_method: 'hybrid',
+      top_k: topK,
+      vector_weight: data.weights?.vector ?? 0.5,
+      bm25_weight: data.weights?.bm25 ?? 0.5,
+      chunk_size: 500,
+      chunk_overlap: 50,
+    };
+
     // Sync sim controls to actual values returned from server
     const simSlider = document.getElementById('debugSimSlider');
     const simInput  = document.getElementById('debugSimThreshold');
-    if (simSlider) simSlider.value = data.config.relevance_threshold;
-    if (simInput)  simInput.value  = data.config.relevance_threshold;
-    const actualMethod = data.config.search_method || 'hybrid';
+    if (simSlider) simSlider.value = config.relevance_threshold ?? 0.35;
+    if (simInput)  simInput.value  = config.relevance_threshold ?? 0.35;
+    const actualMethod = config.search_method || 'hybrid';
     const methodRadio = document.querySelector(`input[name="debugSimMethod"][value="${actualMethod}"]`);
     if (methodRadio) methodRadio.checked = true;
     renderDebugResults(data);
@@ -132,7 +143,15 @@ async function runDebugSearch() {
 // ── Render results ────────────────────────────────────────────────────────────
 
 function renderDebugResults(d) {
-  const cfg = d.config;
+  const cfg = d.config || {
+    top_k: 10,
+    vector_weight: d.weights?.vector ?? 0.5,
+    bm25_weight: d.weights?.bm25 ?? 0.5,
+    relevance_threshold: 0.35,
+    search_method: 'hybrid',
+    chunk_size: 500,
+    chunk_overlap: 50,
+  };
   const out = document.getElementById('debugResults');
 
   out.innerHTML = `
@@ -504,8 +523,12 @@ function reapplySimView() {
   const simMethodEl = document.querySelector('input[name="debugSimMethod"]:checked');
   const simMethod   = simMethodEl ? simMethodEl.value : 'hybrid';
 
-  const actualMethod    = d.config.search_method || 'hybrid';
-  const actualThreshold = d.config.relevance_threshold;
+  const safeConfig = d.config || {
+    search_method: 'hybrid',
+    relevance_threshold: 0.35,
+  };
+  const actualMethod    = safeConfig.search_method || 'hybrid';
+  const actualThreshold = safeConfig.relevance_threshold ?? 0.35;
   const isSimMethod    = simMethod !== actualMethod;
   const isSimThreshold = Math.abs(simThreshold - actualThreshold) > 0.001;
   const isSim          = isSimMethod || isSimThreshold;

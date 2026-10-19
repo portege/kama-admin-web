@@ -158,10 +158,12 @@ async function apiFetch(path, opts = {}) {
   }
 
   const isFormData = opts.body instanceof FormData;
+  const token = getToken();
   let res = await fetch(`${base}/api${path}`, {
     ...opts,
     headers: {
       ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       'X-API-Key': apiKey,
       ...(opts.headers || {}),
     },
@@ -179,6 +181,7 @@ async function apiFetch(path, opts = {}) {
         ...opts,
         headers: {
           ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
           'X-API-Key': refreshedKey,
           ...(opts.headers || {}),
         },

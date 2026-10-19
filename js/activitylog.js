@@ -146,7 +146,26 @@ async function loadActivityLog() {
     if (s.workspaceHandle) params.set('workspace_handle', s.workspaceHandle);
 
     const data = await adminFetch(`/activity-log?${params}`);
-    const items = data.items || [];
+    const records = Array.isArray(data.records) ? data.records : (Array.isArray(data.items) ? data.items : []);
+    const pagination = data.pagination || {};
+    const page = Number(pagination.page ?? data.page ?? s.page ?? 1);
+    const perPage = Number(pagination.per_page ?? data.per_page ?? s.perPage ?? 25);
+    const total = Number(pagination.total ?? data.total ?? 0);
+    const totalPages = Number(pagination.total_pages ?? data.total_pages ?? 0);
+    const items = records.map(r => ({
+      ...r,
+      id: r.id,
+      timestamp: r.timestamp ?? r.created_at ?? r.createdAt,
+      user: r.user ?? r.actor_username ?? r.username ?? 'system',
+      method: r.method ?? 'GET',
+      endpoint: r.endpoint ?? r.path ?? r.action ?? '—',
+      status_code: r.status_code ?? r.status ?? null,
+      duration_ms: r.duration_ms ?? r.durationMs ?? r.duration ?? null,
+      ip_address: r.ip_address ?? r.ip ?? r.ipAddress ?? r.client_ip ?? '—',
+      payload: r.payload ?? null,
+      result: r.result ?? null,
+      error_message: r.error_message ?? r.detail ?? null,
+    }));
 
     if (!items.length) {
       tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📋</div><p>No activity logged yet.</p></div></td></tr>';
@@ -167,7 +186,7 @@ async function loadActivityLog() {
           </div>
         </td>
         <td>${_statusBadge(r.status_code)}</td>
-        <td style="white-space:nowrap;">${r.duration_ms != null ? r.duration_ms.toFixed(0) + ' ms' : '—'}</td>
+        <td style="white-space:nowrap;">${r.duration_ms != null ? Number(r.duration_ms).toFixed(0) + ' ms' : '—'}</td>
         <td style="font-family:monospace;font-size:12px;">${_escAL(r.ip_address || '—')}</td>
         <td>
           <button class="btn btn-secondary btn-sm btn-icon" title="View Details" onclick='viewALDetail(${JSON.stringify(r).replace(/'/g,"&#39;")})'>View</button>
@@ -175,13 +194,12 @@ async function loadActivityLog() {
       </tr>
     `).join('');
 
-    // Pagination info
-    const start = (data.page - 1) * data.per_page + 1;
-    const end = Math.min(data.page * data.per_page, data.total);
+    const start = (page - 1) * perPage + 1;
+    const end = Math.min(page * perPage, total);
     document.getElementById('alPaginationInfo').textContent =
-      `Showing ${start}–${end} of ${data.total} activities`;
+      `Showing ${start}–${end} of ${total} activities`;
 
-    _renderALPagination(data.page, data.total_pages);
+    _renderALPagination(page, totalPages || Math.max(1, Math.ceil(total / perPage)));
     _updateALSortIcons();
 
   } catch (err) {
@@ -366,7 +384,16 @@ async function exportActivityLogCSV() {
     if (s.workspaceHandle) params.set('workspace_handle', s.workspaceHandle);
 
     const data = await adminFetch(`/activity-log?${params}`);
-    const items = data.items || [];
+    const records = Array.isArray(data.records) ? data.records : (Array.isArray(data.items) ? data.items : []);
+    const items = records.map(r => ({
+      ...r,
+      timestamp: r.timestamp ?? r.created_at ?? r.createdAt,
+      user: r.user ?? r.actor_username ?? r.username ?? 'system',
+      method: r.method ?? 'GET',
+      endpoint: r.endpoint ?? r.path ?? r.action ?? '—',
+      status_code: r.status_code ?? r.status ?? null,
+      duration_ms: r.duration_ms ?? r.durationMs ?? null,
+    }));
     if (!items.length) { showToast('No data to export', 'warning'); return; }
 
     const headers = ['ID','Timestamp','User','Method','Endpoint','Status','Duration (ms)','IP','Device','OS','Browser','Error'];
@@ -377,7 +404,7 @@ async function exportActivityLogCSV() {
       r.method,
       `"${(r.endpoint||'').replace(/"/g,'""')}"`,
       r.status_code,
-      r.duration_ms != null ? r.duration_ms.toFixed(0) : '',
+      r.duration_ms != null ? Number(r.duration_ms).toFixed(0) : '',
       r.ip_address || '',
       r.device_type || '',
       `${r.os_type||''}${r.os_version?' '+r.os_version:''}`,
