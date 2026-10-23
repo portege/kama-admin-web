@@ -112,12 +112,23 @@ async function runDebugSearch() {
     });
     if (!data) return; // 401 already triggered logout redirect
     window._debugData = data;
+
+    const config = data.config || {
+      relevance_threshold: 0.35,
+      search_method: 'hybrid',
+      top_k: topK,
+      vector_weight: data.weights?.vector ?? 0.5,
+      bm25_weight: data.weights?.bm25 ?? 0.5,
+      chunk_size: 500,
+      chunk_overlap: 50,
+    };
+
     // Sync sim controls to actual values returned from server
     const simSlider = document.getElementById('debugSimSlider');
     const simInput  = document.getElementById('debugSimThreshold');
-    if (simSlider) simSlider.value = data.config.relevance_threshold;
-    if (simInput)  simInput.value  = data.config.relevance_threshold;
-    const actualMethod = data.config.search_method || 'hybrid';
+    if (simSlider) simSlider.value = config.relevance_threshold ?? 0.35;
+    if (simInput)  simInput.value  = config.relevance_threshold ?? 0.35;
+    const actualMethod = config.search_method || 'hybrid';
     const methodRadio = document.querySelector(`input[name="debugSimMethod"][value="${actualMethod}"]`);
     if (methodRadio) methodRadio.checked = true;
     renderDebugResults(data);
@@ -132,7 +143,22 @@ async function runDebugSearch() {
 // ── Render results ────────────────────────────────────────────────────────────
 
 function renderDebugResults(d) {
-  const cfg = d.config;
+  const cfg = d.config || {
+    top_k: 10,
+    vector_weight: d.weights?.vector ?? 0.5,
+    bm25_weight: d.weights?.bm25 ?? 0.5,
+    relevance_threshold: 0.35,
+    search_method: 'hybrid',
+    chunk_size: 500,
+    chunk_overlap: 50,
+  };
+  const llmContext = d.llm_context || { sources_count: 0, sources: [] };
+  const thresholdFilter = d.threshold_filter || {
+    threshold: cfg.relevance_threshold ?? 0.35,
+    passed: 0,
+    failed: 0,
+    failed_items: [],
+  };
   const out = document.getElementById('debugResults');
 
   out.innerHTML = `
@@ -169,8 +195,8 @@ function renderDebugResults(d) {
 
     <!-- ② Summary row -->
     <div id="debugSummaryRow" style="display:grid;grid-template-columns:repeat(9,1fr);gap:12px;margin-bottom:16px;">
-      ${summaryCard('To LLM', d.llm_context.sources_count, '#ede9fe', '#6d28d9')}
-      ${summaryCard('Passed', d.threshold_filter.passed, '#dcfce7', '#166534')}
+      ${summaryCard('To LLM', llmContext.sources_count || 0, '#ede9fe', '#6d28d9')}
+      ${summaryCard('Passed', thresholdFilter.passed || 0, '#dcfce7', '#166534')}
       ${summaryCard('Hybrid', d.hybrid.total, '#fef9c3', '#854d0e')}
       ${summaryCard('Vector Search', d.vectordb.count, '#dbeafe', '#1d4ed8')}
       ${summaryCard('BM25 Search', d.bm25.count, '#dcfce7', '#15803d')}
@@ -181,10 +207,10 @@ function renderDebugResults(d) {
     </div>
 
     <!-- ③ LLM context sources (first, open) -->
-    <div id="debugLLMSection">${llmContextSection(d.llm_context)}</div>
+    <div id="debugLLMSection">${llmContextSection(llmContext)}</div>
 
     <!-- ④ Threshold filter detail -->
-    <div id="debugThresholdSection">${thresholdSection(d.threshold_filter)}</div>
+    <div id="debugThresholdSection">${thresholdSection(thresholdFilter)}</div>
 
     <!-- ⑤ Hybrid fusion -->
     <div id="debugHybridSection">${collapsibleSection(
@@ -504,8 +530,12 @@ function reapplySimView() {
   const simMethodEl = document.querySelector('input[name="debugSimMethod"]:checked');
   const simMethod   = simMethodEl ? simMethodEl.value : 'hybrid';
 
-  const actualMethod    = d.config.search_method || 'hybrid';
-  const actualThreshold = d.config.relevance_threshold;
+  const safeConfig = d.config || {
+    search_method: 'hybrid',
+    relevance_threshold: 0.35,
+  };
+  const actualMethod    = safeConfig.search_method || 'hybrid';
+  const actualThreshold = safeConfig.relevance_threshold ?? 0.35;
   const isSimMethod    = simMethod !== actualMethod;
   const isSimThreshold = Math.abs(simThreshold - actualThreshold) > 0.001;
   const isSim          = isSimMethod || isSimThreshold;
