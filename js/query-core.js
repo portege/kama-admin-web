@@ -13,6 +13,11 @@
 
 // ── Tiny helpers ──────────────────────────────────────────────────────────────
 
+function asFiniteNumber(value, fallback = 0) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
 function escHtml(str) {
   if (!str) return '';
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;')
@@ -20,14 +25,16 @@ function escHtml(str) {
 }
 
 function scoreBar(score, maxScore) {
-  const pct   = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
-  const color = score >= 0.5 ? '#22c55e' : score >= 0.3 ? '#f59e0b' : '#ef4444';
+  const safeScore = asFiniteNumber(score, 0);
+  const safeMaxScore = Math.max(asFiniteNumber(maxScore, 0), 0);
+  const pct = safeMaxScore > 0 ? Math.round((safeScore / safeMaxScore) * 100) : 0;
+  const color = safeScore >= 0.5 ? '#22c55e' : safeScore >= 0.3 ? '#f59e0b' : '#ef4444';
   return `
     <div style="display:flex;align-items:center;gap:8px;min-width:120px;">
       <div style="flex:1;height:6px;background:#f1f5f9;border-radius:3px;overflow:hidden;">
         <div style="width:${pct}%;height:100%;background:${color};border-radius:3px;transition:width .3s;"></div>
       </div>
-      <span style="font-size:12px;font-weight:600;color:${color};min-width:42px;">${score.toFixed(4)}</span>
+      <span style="font-size:12px;font-weight:600;color:${color};min-width:42px;">${safeScore.toFixed(4)}</span>
     </div>`;
 }
 
@@ -70,7 +77,7 @@ function collapsibleSection(id, title, bgColor, textColor, bodyHtml, defaultOpen
 function chromaTable(rows, threshold = null, isSim = false, vectorQuery = null) {
   if (!rows || rows.length === 0) return emptyMsg('No Vector Search results');
 
-  const maxScore   = Math.max(...rows.map(r => r.score));
+  const maxScore   = Math.max(...rows.map(r => asFiniteNumber(r.score, 0)));
   const showStatus = threshold !== null;
 
   const queryBanner = vectorQuery
@@ -91,13 +98,14 @@ function chromaTable(rows, threshold = null, isSim = false, vectorQuery = null) 
       </tr></thead>
       <tbody>
         ${rows.map((r, i) => {
-          const pass = !showStatus || r.score > threshold;
+          const safeScore = asFiniteNumber(r.score, 0);
+          const pass = !showStatus || safeScore > asFiniteNumber(threshold, 0);
           return `<tr style="${!pass ? 'opacity:.5;' : ''}">
             <td style="color:var(--text-muted);font-size:12px;">${i + 1}</td>
             <td><span class="badge badge-info">${r.doc_id ?? '—'}</span></td>
             <td style="max-width:320px;white-space:normal;word-break:break-word;font-size:13px;">${escHtml(r.title)}</td>
-            <td>${scoreBar(r.score, maxScore)}</td>
-            <td style="font-size:12px;color:var(--text-muted);">${r.distance}</td>
+            <td>${scoreBar(safeScore, maxScore)}</td>
+            <td style="font-size:12px;color:var(--text-muted);">${asFiniteNumber(r.distance, 0)}</td>
             <td style="font-size:12px;color:var(--text-muted);">${r.page_num ?? '—'}</td>
             ${showStatus ? `<td>${pass ? '<span class="badge badge-success">✓ PASS</span>' : '<span class="badge badge-danger">✗ FAIL</span>'}</td>` : ''}
           </tr>`;
@@ -105,7 +113,7 @@ function chromaTable(rows, threshold = null, isSim = false, vectorQuery = null) 
       </tbody>
     </table></div>
     ${showStatus ? `<div style="padding:10px 16px;font-size:12px;color:var(--text-muted);border-top:1px solid var(--border);">
-      Threshold = <strong${isSim ? ' style="color:#c2410c;"' : ''}>${threshold.toFixed(2)}</strong>
+      Threshold = <strong${isSim ? ' style="color:#c2410c;"' : ''}>${asFiniteNumber(threshold, 0).toFixed(2)}</strong>
       ${isSim ? '<span style="margin-left:6px;background:#fef3c7;color:#92400e;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:700;">SIMULATED</span>' : ''}
     </div>` : ''}`;
 }
@@ -113,7 +121,7 @@ function chromaTable(rows, threshold = null, isSim = false, vectorQuery = null) 
 function bm25Table(rows, threshold = null, isSim = false, bm25Query = null, bm25Tokens = null) {
   if (!rows || rows.length === 0) return emptyMsg('No BM25 results (query may not contain indexable terms)');
 
-  const maxScore   = Math.max(...rows.map(r => r.score));
+  const maxScore   = Math.max(...rows.map(r => asFiniteNumber(r.score, 0)));
   const showStatus = threshold !== null;
   const hasTokens  = bm25Tokens && bm25Tokens.length > 0;
 
@@ -140,20 +148,21 @@ function bm25Table(rows, threshold = null, isSim = false, bm25Query = null, bm25
       </tr></thead>
       <tbody>
         ${rows.map((r, i) => {
-          const pass = !showStatus || r.score > threshold;
+          const safeScore = asFiniteNumber(r.score, 0);
+          const pass = !showStatus || safeScore > asFiniteNumber(threshold, 0);
           return `<tr style="${!pass ? 'opacity:.5;' : ''}">
             <td style="color:var(--text-muted);font-size:12px;">${i + 1}</td>
             <td><span class="badge badge-success">${r.doc_id ?? '—'}</span></td>
             <td style="max-width:320px;white-space:normal;word-break:break-word;font-size:13px;">${escHtml(r.title)}</td>
-            <td>${scoreBar(r.score, maxScore)}</td>
-            <td style="font-size:12px;color:var(--text-muted);">${r.raw_rank}</td>
+            <td>${scoreBar(safeScore, maxScore)}</td>
+            <td style="font-size:12px;color:var(--text-muted);">${r.raw_rank ?? '—'}</td>
             ${showStatus ? `<td>${pass ? '<span class="badge badge-success">✓ PASS</span>' : '<span class="badge badge-danger">✗ FAIL</span>'}</td>` : ''}
           </tr>`;
         }).join('')}
       </tbody>
     </table></div>
     ${showStatus ? `<div style="padding:10px 16px;font-size:12px;color:var(--text-muted);border-top:1px solid var(--border);">
-      Threshold = <strong${isSim ? ' style="color:#c2410c;"' : ''}>${threshold.toFixed(2)}</strong>
+      Threshold = <strong${isSim ? ' style="color:#c2410c;"' : ''}>${asFiniteNumber(threshold, 0).toFixed(2)}</strong>
       ${isSim ? '<span style="margin-left:6px;background:#fef3c7;color:#92400e;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:700;">SIMULATED</span>' : ''}
     </div>` : ''}`;
 }
@@ -161,7 +170,8 @@ function bm25Table(rows, threshold = null, isSim = false, bm25Query = null, bm25
 function hybridTable(rows, threshold, isSim = false) {
   if (!rows || rows.length === 0) return emptyMsg('No hybrid results');
 
-  const maxScore = Math.max(...rows.map(r => r.combined_score));
+  const maxScore = Math.max(...rows.map(r => asFiniteNumber(r.combined_score, 0)));
+  const safeThreshold = asFiniteNumber(threshold, 0);
   return `
     <div class="table-wrap"><table>
       <thead><tr>
@@ -170,14 +180,17 @@ function hybridTable(rows, threshold, isSim = false) {
       </tr></thead>
       <tbody>
         ${rows.map((r, i) => {
-          const pass = r.combined_score > threshold;
+          const combined = asFiniteNumber(r.combined_score, 0);
+          const vectorScore = asFiniteNumber(r.vector_score, 0);
+          const bm25Score = asFiniteNumber(r.bm25_score, 0);
+          const pass = combined > safeThreshold;
           return `<tr style="${pass ? '' : 'opacity:.5;'}">
             <td style="color:var(--text-muted);font-size:12px;">${i + 1}</td>
             <td><span class="badge badge-neutral">${r.doc_id ?? '—'}</span></td>
             <td style="max-width:260px;white-space:normal;word-break:break-word;font-size:13px;">${escHtml(r.title)}</td>
-            <td>${scoreBar(r.combined_score, maxScore)}</td>
-            <td style="font-size:12px;color:#1d4ed8;">${r.vector_score.toFixed(4)}</td>
-            <td style="font-size:12px;color:#15803d;">${r.bm25_score.toFixed(4)}</td>
+            <td>${scoreBar(combined, maxScore)}</td>
+            <td style="font-size:12px;color:#1d4ed8;">${vectorScore.toFixed(4)}</td>
+            <td style="font-size:12px;color:#15803d;">${bm25Score.toFixed(4)}</td>
             <td>${pass
               ? '<span class="badge badge-success">✓ PASS</span>'
               : '<span class="badge badge-danger">✗ FAIL</span>'}</td>
@@ -187,26 +200,30 @@ function hybridTable(rows, threshold, isSim = false) {
     </table></div>
     <div style="padding:10px 16px;font-size:12px;color:var(--text-muted);border-top:1px solid var(--border);">
       Formula: <code>combined = vec_score × w<sub>vec</sub> + bm25_score × w<sub>bm25</sub></code>
-      &nbsp;|&nbsp; Threshold = <strong${isSim ? ' style="color:#c2410c;"' : ''}>${typeof threshold === 'number' ? threshold.toFixed(2) : threshold}</strong>
+      &nbsp;|&nbsp; Threshold = <strong${isSim ? ' style="color:#c2410c;"' : ''}>${safeThreshold.toFixed(2)}</strong>
       ${isSim ? '<span style="margin-left:6px;background:#fef3c7;color:#92400e;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:700;">SIMULATED</span>' : ''}
     </div>`;
 }
 
 function thresholdSection(tf, isSim = false) {
-  const failedRows = tf.failed_items || [];
-  const threshold  = typeof tf.threshold === 'number' ? tf.threshold : parseFloat(tf.threshold);
+  const safeTf = tf || { failed_items: [], threshold: 0, passed: 0, failed: 0 };
+  const failedRows = safeTf.failed_items || [];
+  const threshold  = asFiniteNumber(safeTf.threshold, 0);
 
   const failedHtml = failedRows.length === 0
     ? '<p style="color:var(--text-muted);padding:12px 16px;font-size:13px;">All results passed the threshold.</p>'
     : `<div class="table-wrap"><table>
         <thead><tr><th>Doc ID</th><th>Title</th><th>Combined score</th><th>Gap to threshold</th></tr></thead>
-        <tbody>${failedRows.map(r => `
+        <tbody>${failedRows.map(r => {
+            const combined = asFiniteNumber(r.combined_score, 0);
+            return `
           <tr style="opacity:.6;">
             <td><span class="badge badge-neutral">${r.doc_id ?? '—'}</span></td>
             <td style="max-width:320px;white-space:normal;word-break:break-word;font-size:13px;">${escHtml(r.title)}</td>
-            <td style="color:var(--danger);font-weight:600;">${r.combined_score.toFixed(4)}</td>
-            <td style="font-size:12px;color:var(--text-muted);">−${(threshold - r.combined_score).toFixed(4)}</td>
-          </tr>`).join('')}
+            <td style="color:var(--danger);font-weight:600;">${combined.toFixed(4)}</td>
+            <td style="font-size:12px;color:var(--text-muted);">−${(threshold - combined).toFixed(4)}</td>
+          </tr>`;
+          }).join('')}
         </tbody></table></div>`;
 
   const simBadge = isSim

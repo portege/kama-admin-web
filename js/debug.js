@@ -152,6 +152,13 @@ function renderDebugResults(d) {
     chunk_size: 500,
     chunk_overlap: 50,
   };
+  const llmContext = d.llm_context || { sources_count: 0, sources: [] };
+  const thresholdFilter = d.threshold_filter || {
+    threshold: cfg.relevance_threshold ?? 0.35,
+    passed: 0,
+    failed: 0,
+    failed_items: [],
+  };
   const out = document.getElementById('debugResults');
 
   out.innerHTML = `
@@ -188,8 +195,8 @@ function renderDebugResults(d) {
 
     <!-- ② Summary row -->
     <div id="debugSummaryRow" style="display:grid;grid-template-columns:repeat(9,1fr);gap:12px;margin-bottom:16px;">
-      ${summaryCard('To LLM', d.llm_context.sources_count, '#ede9fe', '#6d28d9')}
-      ${summaryCard('Passed', d.threshold_filter.passed, '#dcfce7', '#166534')}
+      ${summaryCard('To LLM', llmContext.sources_count || 0, '#ede9fe', '#6d28d9')}
+      ${summaryCard('Passed', thresholdFilter.passed || 0, '#dcfce7', '#166534')}
       ${summaryCard('Hybrid', d.hybrid.total, '#fef9c3', '#854d0e')}
       ${summaryCard('Vector Search', d.vectordb.count, '#dbeafe', '#1d4ed8')}
       ${summaryCard('BM25 Search', d.bm25.count, '#dcfce7', '#15803d')}
@@ -200,10 +207,10 @@ function renderDebugResults(d) {
     </div>
 
     <!-- ③ LLM context sources (first, open) -->
-    <div id="debugLLMSection">${llmContextSection(d.llm_context)}</div>
+    <div id="debugLLMSection">${llmContextSection(llmContext)}</div>
 
     <!-- ④ Threshold filter detail -->
-    <div id="debugThresholdSection">${thresholdSection(d.threshold_filter)}</div>
+    <div id="debugThresholdSection">${thresholdSection(thresholdFilter)}</div>
 
     <!-- ⑤ Hybrid fusion -->
     <div id="debugHybridSection">${collapsibleSection(

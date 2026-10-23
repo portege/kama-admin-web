@@ -1059,9 +1059,17 @@ function _setReindexProgress(current, total) {
 
 async function startReindex(docId) {
   showReindexModal();
+
+  const base = getApiBase();
+  if (!base) {
+    _appendReindexLog('<div style="color:#ef4444;">❌ Workspace API endpoint is missing. Please log in again.</div>');
+    document.getElementById('reindexCloseBtn').style.display = 'block';
+    return;
+  }
+
   const url = docId != null
-    ? `/api/admin/reindex?reindex_doc_id=${encodeURIComponent(docId)}`
-    : `/api/admin/reindex`;
+    ? `${base}/api/admin/reindex?reindex_doc_id=${encodeURIComponent(docId)}`
+    : `${base}/api/admin/reindex`;
 
   try {
     const token = sessionStorage.getItem('admin_token');
