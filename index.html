@@ -76,6 +76,28 @@
       return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
     }
 
+    function _decodeTokenPayload(token) {
+      try {
+        const part = String(token || '').split('.')[1] || '';
+        if (!part) return null;
+        const normalized = part.replace(/-/g, '+').replace(/_/g, '/');
+        const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
+        return JSON.parse(atob(padded));
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function _getTenantIdFromToken(token) {
+      const payload = _decodeTokenPayload(token);
+      return String(payload?.tenant_id || '').trim();
+    }
+
+    function _getWorkspaceFromToken(token) {
+      const payload = _decodeTokenPayload(token);
+      return String(payload?.workspace || '').trim().toLowerCase();
+    }
+
     // Redirect if already logged in (same tab / workspace)
     if (sessionStorage.getItem('admin_token')) {
       window.location.href = 'dashboard.html';
@@ -116,11 +138,19 @@
         if (!wsToken) throw new Error('No token received from workspace');
 
         // Step 3: Store session — endpoint-bound, tamper-resistant.
+        const tenantId = _getTenantIdFromToken(wsToken);
+        const tokenWorkspace = _getWorkspaceFromToken(wsToken);
+        if (tokenWorkspace && tokenWorkspace !== workspace.toLowerCase()) {
+          throw new Error('Workspace mismatch detected. Please retry login.');
+        }
         const binding = await _computeBinding(workspace, wsToken);
+        sessionStorage.removeItem('admin_api_key');
+        sessionStorage.removeItem('admin_plan');
         sessionStorage.setItem('admin_workspace',       workspace);
         sessionStorage.setItem('admin_endpoint',        endpoint);
         sessionStorage.setItem('admin_token',           wsToken);
         sessionStorage.setItem('admin_user',            JSON.stringify(wsData.user));
+        sessionStorage.setItem('admin_tenant_id',       tenantId);
         sessionStorage.setItem('admin_session_binding', binding);
         window.location.href = 'dashboard.html';
       } catch (err) {

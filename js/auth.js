@@ -12,12 +12,34 @@ function setToken(t)   { sessionStorage.setItem('admin_token', t); }
 function setUser(u)    { sessionStorage.setItem('admin_user', JSON.stringify(u)); }
 function getWorkspace(){ return sessionStorage.getItem('admin_workspace'); }
 
+function _decodeJwtPayload(token) {
+  try {
+    const part = String(token || '').split('.')[1] || '';
+    if (!part) return null;
+    const normalized = part.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
+    const json = atob(padded);
+    return JSON.parse(json);
+  } catch (_) {
+    return null;
+  }
+}
+
+function getTokenTenantId() {
+  const token = getToken();
+  if (!token) return '';
+  const payload = _decodeJwtPayload(token);
+  return String(payload?.tenant_id || '').trim();
+}
+
 function logout() {
   sessionStorage.removeItem('admin_token');
   sessionStorage.removeItem('admin_user');
   sessionStorage.removeItem('admin_api_key');
+  sessionStorage.removeItem('admin_tenant_id');
   sessionStorage.removeItem('admin_workspace');
   sessionStorage.removeItem('admin_endpoint');
+  sessionStorage.removeItem('admin_plan');
   sessionStorage.removeItem('admin_session_binding');
   window.location.href = 'index.html';
 }
@@ -109,6 +131,7 @@ async function adminFetch(path, opts = {}) {
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${getToken()}`,
+      ...(getTokenTenantId() ? { 'X-Tenant-Id': getTokenTenantId() } : {}),
       ...(opts.headers || {}),
     },
   });
@@ -159,11 +182,13 @@ async function apiFetch(path, opts = {}) {
 
   const isFormData = opts.body instanceof FormData;
   const token = getToken();
+  const tenantId = getTokenTenantId();
   let res = await fetch(`${base}/api${path}`, {
     ...opts,
     headers: {
       ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(tenantId ? { 'X-Tenant-Id': tenantId } : {}),
       'X-API-Key': apiKey,
       ...(opts.headers || {}),
     },
@@ -182,6 +207,7 @@ async function apiFetch(path, opts = {}) {
         headers: {
           ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(tenantId ? { 'X-Tenant-Id': tenantId } : {}),
           'X-API-Key': refreshedKey,
           ...(opts.headers || {}),
         },
