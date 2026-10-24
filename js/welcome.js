@@ -4,6 +4,15 @@
 
 const WELCOME_JOURNEY_DONE_PREFIX = 'welcome_journey_done_';
 let _welcomeJourneyFocus = 'all';
+let _welcomeChecklistLoaded = false;
+let _welcomeDonePages = new Set();
+
+function _journeyStorageKey(page) {
+  const tenant = String(sessionStorage.getItem('admin_tenant_id') || '').trim().toLowerCase();
+  const workspace = String(sessionStorage.getItem('admin_workspace') || '').trim().toLowerCase();
+  const scope = tenant || workspace || 'default';
+  return `${WELCOME_JOURNEY_DONE_PREFIX}${scope}_${page}`;
+}
 
 const WELCOME_JOURNEY_STAGES = [
   {
@@ -62,11 +71,65 @@ const WELCOME_JOURNEY_STAGES = [
 ];
 
 function isJourneyTaskDone(page) {
-  return localStorage.getItem(WELCOME_JOURNEY_DONE_PREFIX + page) === '1';
+  return _welcomeDonePages.has(page);
 }
 
 function setJourneyTaskDone(page, done) {
-  localStorage.setItem(WELCOME_JOURNEY_DONE_PREFIX + page, done ? '1' : '0');
+  if (done) {
+    _welcomeDonePages.add(page);
+  } else {
+    _welcomeDonePages.delete(page);
+  }
+  localStorage.setItem(_journeyStorageKey(page), done ? '1' : '0');
+}
+
+function _loadLocalWelcomeDonePages() {
+  const done = new Set();
+  WELCOME_JOURNEY_STAGES.forEach((stage) => {
+    stage.tasks.forEach((task) => {
+      if (localStorage.getItem(_journeyStorageKey(task.page)) === '1') {
+        done.add(task.page);
+      }
+    });
+  });
+  return done;
+}
+
+function _persistLocalWelcomeDonePages(donePages) {
+  const doneSet = new Set(donePages || []);
+  WELCOME_JOURNEY_STAGES.forEach((stage) => {
+    stage.tasks.forEach((task) => {
+      const done = doneSet.has(task.page);
+      localStorage.setItem(_journeyStorageKey(task.page), done ? '1' : '0');
+    });
+  });
+}
+
+async function loadWelcomeChecklist(force = false) {
+  if (_welcomeChecklistLoaded && !force) return;
+  try {
+    const data = await adminFetch('/welcome-checklist');
+    const donePages = Array.isArray(data?.done_pages) ? data.done_pages.map(v => String(v || '').trim()).filter(Boolean) : [];
+    _welcomeDonePages = new Set(donePages);
+    _persistLocalWelcomeDonePages(donePages);
+    _welcomeChecklistLoaded = true;
+  } catch (_) {
+    _welcomeDonePages = _loadLocalWelcomeDonePages();
+    _welcomeChecklistLoaded = true;
+  }
+}
+
+async function saveWelcomeChecklist() {
+  const donePages = Array.from(_welcomeDonePages.values());
+  _persistLocalWelcomeDonePages(donePages);
+  try {
+    await adminFetch('/welcome-checklist', {
+      method: 'PUT',
+      body: JSON.stringify({ done_pages: donePages }),
+    });
+  } catch (err) {
+    showToast(`Failed to sync checklist: ${err.message}`, 'warning');
+  }
 }
 
 function getJourneyFocusLabel(focus) {
@@ -138,13 +201,16 @@ function toggleJourneyTask(page) {
   if (!canAccessPage(page)) return;
   const nextDone = !isJourneyTaskDone(page);
   setJourneyTaskDone(page, nextDone);
+  void saveWelcomeChecklist();
   renderWelcome();
 }
 
 function resetJourneyProgress() {
+  _welcomeDonePages.clear();
   WELCOME_JOURNEY_STAGES.forEach((stage) => {
-    stage.tasks.forEach((task) => localStorage.removeItem(WELCOME_JOURNEY_DONE_PREFIX + task.page));
+    stage.tasks.forEach((task) => localStorage.setItem(_journeyStorageKey(task.page), '0'));
   });
+  void saveWelcomeChecklist();
   renderWelcome();
 }
 
@@ -163,6 +229,7 @@ function continueJourney(stages) {
 }
 
 async function renderWelcome() {
+  await loadWelcomeChecklist();
   const body = document.getElementById('pageBody');
   const user = JSON.parse(sessionStorage.getItem('admin_user') || '{}');
   const stages = getVisibleJourneyStages();
