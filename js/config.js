@@ -20,6 +20,22 @@ const MAPPING_API_URL = _isLocalhost
   //? 'http://localhost:5001'
   ? _normalizeBaseUrl('map.babeh.com')
   : _normalizeBaseUrl('map.babeh.com');
+const SHARED_API_URL = _normalizeBaseUrl('kama-api.babeh.com');
+
+function normalizeWorkspaceEndpoint(rawEndpoint) {
+  const value = _normalizeBaseUrl(rawEndpoint);
+  if (!value) return '';
+  try {
+    const parsed = new URL(value);
+    const host = String(parsed.hostname || '').toLowerCase();
+    if (host === 'ws.babeh.com' || host.endsWith('.ws-a.babeh.com')) {
+      return SHARED_API_URL;
+    }
+    return `${parsed.protocol}//${parsed.host}`.replace(/\/+$/, '');
+  } catch (_) {
+    return value;
+  }
+}
 
 // ── Workspace registry (populated at login page load) ───────────────────
 let WORKSPACE_MAP = {}; // { slug: endpoint }
@@ -56,7 +72,7 @@ async function loadWorkspaces() {
     const list = Array.isArray(data) ? data : (data.workspaces || data.data || []);
     list.forEach(ws => {
       const slug = ws.workspace_name || ws.slug || ws.name;
-      const url  = ws.endpoint || ws.url || ws.api_url || '';
+      const url  = normalizeWorkspaceEndpoint(ws.endpoint || ws.url || ws.api_url || '');
       if (slug && url) WORKSPACE_MAP[slug] = url;
     });
   } catch (e) {
@@ -85,7 +101,7 @@ async function lookupWorkspace(slug) {
     );
     if (res.ok) {
       const data = await res.json();
-      const url = data.endpoint || data.url || data.api_url || null;
+      const url = normalizeWorkspaceEndpoint(data.endpoint || data.url || data.api_url || null);
       if (url) {
         WORKSPACE_MAP[key] = url;
         _recordWorkspaceTiming('workspaceLookup', started, { workspace: key, source: 'direct' });
@@ -118,11 +134,11 @@ async function lookupWorkspace(slug) {
  * Never fall back to the mapping API for admin/data requests.
  */
 function getApiBase() {
-  const endpoint  = sessionStorage.getItem('admin_endpoint');
+  const endpoint  = normalizeWorkspaceEndpoint(sessionStorage.getItem('admin_endpoint'));
   if (endpoint) return endpoint;
 
   const workspace = sessionStorage.getItem('admin_workspace');
-  if (workspace && WORKSPACE_MAP[workspace]) return WORKSPACE_MAP[workspace];
+  if (workspace && WORKSPACE_MAP[workspace]) return normalizeWorkspaceEndpoint(WORKSPACE_MAP[workspace]);
 
   return '';
 }
