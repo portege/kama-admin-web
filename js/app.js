@@ -341,18 +341,37 @@ window.refreshTracingTimeline = function refreshTracingTimeline() {
   const started = performance.now();
   requireAuth();
 
-  // Show active workspace name in sidebar logo
+  // Show active workspace name in sidebar logo, plus workspace_id when available
   const ws = sessionStorage.getItem('admin_workspace');
+  const workspaceId = sessionStorage.getItem('admin_workspace_id');
   const workspaceLabel = document.getElementById('workspaceLabel');
-  if (workspaceLabel && ws) {
-    workspaceLabel.textContent = 'Workspace: ' + ws;
+  if (workspaceLabel) {
+    const labelParts = [];
+    if (ws) labelParts.push('Workspace: ' + ws);
+    if (workspaceId) labelParts.push('ID: ' + workspaceId);
+    if (labelParts.length > 0) {
+      workspaceLabel.textContent = labelParts.join(' • ');
+    }
   }
 
   // Load current user info + API key from /admin/me
   try {
     const me = await adminFetch('/me');
+    const resolvedWorkspaceId = me.workspace_id || getTokenTenantId() || sessionStorage.getItem('admin_workspace_id') || '';
+    if (resolvedWorkspaceId) {
+      sessionStorage.setItem('admin_workspace_id', resolvedWorkspaceId);
+    }
     sessionStorage.setItem('admin_api_key', me.api_key || '');
     sessionStorage.setItem('admin_user', JSON.stringify({ id: me.id, username: me.username, role: me.role }));
+
+    if (workspaceLabel) {
+      const labelParts = [];
+      if (ws) labelParts.push('Workspace: ' + ws);
+      if (resolvedWorkspaceId) labelParts.push('ID: ' + resolvedWorkspaceId);
+      if (labelParts.length > 0) {
+        workspaceLabel.textContent = labelParts.join(' • ');
+      }
+    }
 
     // Sidebar user info
     document.getElementById('sidebarUsername').textContent = me.username;

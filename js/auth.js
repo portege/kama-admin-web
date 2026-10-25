@@ -11,6 +11,7 @@ function getUser()     { return JSON.parse(sessionStorage.getItem('admin_user') 
 function setToken(t)   { sessionStorage.setItem('admin_token', t); }
 function setUser(u)    { sessionStorage.setItem('admin_user', JSON.stringify(u)); }
 function getWorkspace(){ return sessionStorage.getItem('admin_workspace'); }
+function getWorkspaceId(){ return sessionStorage.getItem('admin_workspace_id'); }
 
 function _decodeJwtPayload(token) {
   try {
@@ -38,6 +39,7 @@ function logout() {
   sessionStorage.removeItem('admin_api_key');
   sessionStorage.removeItem('admin_tenant_id');
   sessionStorage.removeItem('admin_workspace');
+  sessionStorage.removeItem('admin_workspace_id');
   sessionStorage.removeItem('admin_endpoint');
   sessionStorage.removeItem('admin_plan');
   sessionStorage.removeItem('admin_session_binding');
