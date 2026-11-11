@@ -61,6 +61,29 @@
         </button>
       </form>
 
+      <p style="text-align:center;margin-top:16px;font-size:13px;">
+        <a href="#" id="showForgot" style="color:#BB86FC;text-decoration:none;font-weight:600;">Forgot password?</a>
+      </p>
+
+      <form id="forgotForm" autocomplete="off" style="display:none;margin-top:8px;">
+        <div class="login-error" id="forgotError"></div>
+        <div class="login-error" id="forgotSuccess" style="display:none;background:rgba(46, 204, 113, 0.18);border-color:rgba(46, 204, 113, 0.45);color:#b8ffd8;"></div>
+        <div class="form-group">
+          <label class="form-label" for="forgotWorkspace">Workspace</label>
+          <input class="form-control" type="text" id="forgotWorkspace" name="forgotWorkspace" placeholder="e.g. sales-dept" autocomplete="off" spellcheck="false" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="forgotUsername">Username</label>
+          <input class="form-control" type="text" id="forgotUsername" name="forgotUsername" placeholder="Enter username" autocomplete="username" required />
+        </div>
+        <button type="submit" class="btn btn-primary w-full" id="forgotBtn" style="justify-content:center;margin-top:8px;padding:16px 24px;font-size:15px;font-weight:600;border-radius:10px;letter-spacing:0.02em;">
+          Send reset link
+        </button>
+        <p style="text-align:center;margin-top:14px;font-size:12px;">
+          <a href="#" id="showLogin" style="color:#BB86FC;text-decoration:none;font-weight:600;">Back to sign in</a>
+        </p>
+      </form>
+
       <p style="text-align:center;margin-top:20px;font-size:12px;color:rgba(255,255,255,0.38);">
         Engineered by <a href="https://mas-mas.it" target="_blank" rel="noopener noreferrer" style="color: #BB86FC; text-decoration: none; font-weight: 600;">Mas-Mas.IT</a>
       </p>
@@ -158,6 +181,86 @@
         errEl.classList.add('visible');
         btn.disabled    = false;
         btn.textContent = 'Sign In';
+      }
+    });
+
+    const SHARED_ADMIN_API = (() => {
+      const hostname = window.location.hostname;
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        return 'http://127.0.0.1:8101';
+      }
+      return 'https://kama-api.babeh.com';
+    })();
+
+    const loginForm = document.getElementById('loginForm');
+    const forgotForm = document.getElementById('forgotForm');
+    const showForgot = document.getElementById('showForgot');
+    const showLogin = document.getElementById('showLogin');
+
+    function showForgotError(message) {
+      const errEl = document.getElementById('forgotError');
+      const okEl = document.getElementById('forgotSuccess');
+      okEl.style.display = 'none';
+      okEl.classList.remove('visible');
+      errEl.textContent = message;
+      errEl.classList.add('visible');
+    }
+
+    function showForgotSuccess(message) {
+      const errEl = document.getElementById('forgotError');
+      const okEl = document.getElementById('forgotSuccess');
+      errEl.classList.remove('visible');
+      okEl.textContent = message;
+      okEl.style.display = 'block';
+      okEl.classList.add('visible');
+    }
+
+    showForgot.addEventListener('click', (e) => {
+      e.preventDefault();
+      document.getElementById('forgotWorkspace').value = document.getElementById('workspace').value.trim();
+      loginForm.style.display = 'none';
+      showForgot.style.display = 'none';
+      forgotForm.style.display = 'block';
+    });
+
+    showLogin.addEventListener('click', (e) => {
+      e.preventDefault();
+      forgotForm.style.display = 'none';
+      loginForm.style.display = 'block';
+      showForgot.style.display = 'block';
+    });
+
+    forgotForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('forgotBtn');
+      const workspace = document.getElementById('forgotWorkspace').value.trim();
+      const username = document.getElementById('forgotUsername').value.trim();
+      document.getElementById('forgotError').classList.remove('visible');
+      document.getElementById('forgotSuccess').style.display = 'none';
+      if (!workspace || !username) {
+        showForgotError('Workspace and username are required.');
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+      try {
+        const res = await fetch(`${SHARED_ADMIN_API}/api/admin/request-password-reset`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ workspace, username }),
+        });
+        let data = {};
+        try { data = await res.json(); } catch (_) {}
+        if (!res.ok) {
+          const detail = data.detail || data.message || 'Could not send the reset link.';
+          throw new Error(typeof detail === 'string' ? detail : 'Could not send the reset link.');
+        }
+        showForgotSuccess('Reset link sent to the email on file.');
+        btn.textContent = 'Sent';
+      } catch (err) {
+        showForgotError(err.message || 'Could not send the reset link.');
+        btn.disabled = false;
+        btn.textContent = 'Send reset link';
       }
     });
   </script>
